@@ -15,7 +15,7 @@
  */
 import {HttpClient, HttpHeaders} from '@angular/common/http';
 import {Component, EventEmitter, OnDestroy, OnInit, Output, ViewChild} from '@angular/core';
-// import {MatSelect} from '@angular/material/select';
+import {MatSelect} from '@angular/material/select';
 // import {OAuthService} from 'angular-oauth2-oidc';
 import * as _ from 'lodash';
 import {defer, EMPTY, Observable, of, Subject, Subscription} from 'rxjs';
@@ -24,7 +24,7 @@ import {catchError, filter, takeUntil} from 'rxjs/operators';
 import {BigQueryService} from '../big-query.service';
 import {GoogleAuthService} from '../google-auth.service';
 import {LogService} from '../log.service';
-import {BqProject, GetJobsRequest} from '../rest_interfaces';
+import {BqProject, BqProjectListResponse} from '../rest_interfaces';
 
 /** UI for 'download from GCP'. */
 @Component({
@@ -32,19 +32,17 @@ import {BqProject, GetJobsRequest} from '../rest_interfaces';
   templateUrl: './projects.component.html',
   styleUrls: ['./projects.component.css']
 })
-
 export class ProjectsComponent implements OnInit, OnDestroy {
   allProjects: BqProject[];  // All the projects that are available.
   projects: BqProject[];  // The list of projects matching the current filter.
   projectFilter = '';
-  allUsers = false;
   selectedProject: BqProject;
   isLoading: boolean;
   private readonly destroy = new Subject<void>();
   @ViewChild('projectSelect') projectSelect;
 
   // Emitted events.
-  @Output() getJobs = new EventEmitter<GetJobsRequest>();
+  @Output() getJobs = new EventEmitter<BqProject>();
   public isLoggedIn: boolean;
   constructor(
       private http: HttpClient, private oauthService: GoogleAuthService,
@@ -139,12 +137,7 @@ export class ProjectsComponent implements OnInit, OnDestroy {
 
   listJobs(): void {
     if (this.selectedProject) {
-      const request: GetJobsRequest = {
-        project: this.selectedProject,
-        limit: 1000,
-        allUsers: this.allUsers
-      };
-      this.getJobs.emit(request);
+      this.getJobs.emit(this.selectedProject);
     }
   }
 

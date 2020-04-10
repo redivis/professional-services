@@ -15,12 +15,10 @@
  */
 import {ConstantPool} from '@angular/compiler/src/constant_pool';
 import * as google from 'google-charts';
-import * as _ from 'lodash';
-
 import {LogService} from './log.service';
 import {Job, QueryStage, QueryStep} from './rest_interfaces';
 
-export interface Edge {
+interface Edge {
   from: QueryStage;
   to: QueryStage;
   outputName: string;
@@ -31,14 +29,11 @@ export class BqQueryPlan {
   readonly edges: Edge[] = [];
   ganttChart: any;
   ganttData: any;
-  progressChart: any;
-  progressData: any;
-  isValid = true;
+  isValid = false;
 
   constructor(public readonly plan: Job, private logSvc: LogService) {
     if (!plan.hasOwnProperty('kind')) {
       logSvc.warn('No plan document found in job.');
-      this.isValid = false;
       return;
     }
     if (!plan.kind.startsWith('bigquery')) {
@@ -51,7 +46,6 @@ export class BqQueryPlan {
       this.nodes = this.plan.statistics.query.queryPlan;
     } else {
       logSvc.warn(`No query found in job ${this.plan.id}`);
-      // console.log(this.plan);
       return;
     }
     this.isValid = true;
@@ -201,104 +195,9 @@ export class BqQueryPlan {
     this.ganttData = data;
   }
 
-  /** visualize the progress data */
-  asProgressChart(
-      containerName: string,
-      onSelectHandler:
-          (chart: google.GoogleCharts.AreaChart, data: object) => void): void {
-    const container = document.getElementById(containerName);
-    if (!container) {
-      this.logSvc.error(`Can't find container '${containerName}'`);
-      return;
-    }
-    const data = new google.GoogleCharts.api.visualization.DataTable();
-    const chart =
-        new google.GoogleCharts.api.visualization.AreaChart(container);
-    data.addColumn('date', 'time');
-    data.addColumn('number', 'Completed Units');
-    data.addColumn('number', 'Active Units');
-    data.addColumn('number', 'Pending Units');
-
-    // get the time data, ignore last entry as it often is an invalid data point
-    const timeline = _.slice(
-        this.plan.statistics.query.timeline, 0,
-        this.plan.statistics.query.timeline.length - 1);
-    data.addRows(timeline.map(
-        item =>
-            [new Date(
-                 Number(item.elapsedMs) +
-                 Number(this.plan.statistics.startTime)),
-             Number(item.completedUnits), Number(item.activeUnits),
-             Number(item.pendingUnits)]));
-    const options = {
-      isStacked: true,
-      legend: {position: 'bottom'},
-      connectSteps: false,
-      colors: ['#4374E0', '#53A8FB', '#F1CA3A', '#E49307'],
-      title: 'Work Completion Progress'
-    };
-    chart.draw(data, options);
-    if (onSelectHandler) {
-      google.GoogleCharts.api.visualization.events.addListener(
-          chart, 'select', none => {
-            onSelectHandler(chart, data);
-          });
-    }
-    this.progressChart = chart;
-    this.progressData = data;
-  }
-  /**Visualise progress slot usage */
-  asSlotUsageChart(
-      containerName: string,
-      onSelectHandler:
-          (chart: google.GoogleCharts.LineChart, data: object) => void): void {
-    const container = document.getElementById(containerName);
-    if (!container) {
-      this.logSvc.error(`Can't find container '${containerName}'`);
-      return;
-    }
-    const data = new google.GoogleCharts.api.visualization.DataTable();
-    data.addColumn('date', 'time');
-    data.addColumn('number', 'estd Slots');
-    const chart =
-        new google.GoogleCharts.api.visualization.LineChart(container);
-
-    // calculate the slot usage
-    const left = _.slice(this.plan.statistics.query.timeline, 1);
-    const right = _.slice(
-        this.plan.statistics.query.timeline, 0,
-        this.plan.statistics.query.timeline.length - 1);
-    const pairs = _.zip(right, left);
-
-
-    data.addRows(pairs.map(
-        item =>
-            [new Date(
-                 Number(item[0].elapsedMs) +
-                 Number(this.plan.statistics.startTime)),
-             Math.max(
-                 0,
-                 (Number(item[0].totalSlotMs) - Number(item[1].totalSlotMs)) /
-                     (Number(item[0].elapsedMs) -
-                      Number(item[1].elapsedMs)))]));
-    const options = {
-      isStacked: true,
-      legend: {position: 'bottom'},
-      connectSteps: false,
-      colors: ['#4374E0', '#53A8FB', '#F1CA3A', '#E49307'],
-      title: 'Estimated Slot Usage'
-    };
-    chart.draw(data, options);
-    if (onSelectHandler) {
-      google.GoogleCharts.api.visualization.events.addListener(
-          chart, 'select', none => {
-            onSelectHandler(chart, data);
-          });
-    }
-  }
   /**
-   * Calculate the node background color, returning the one for the
-   * biggest time.
+   * Calculate the node background color, returning the one for the biggest
+   * time.
    */
   private colorForMaxTime(node: QueryStage): string {
     if (node.waitMsAvg) {
@@ -316,22 +215,26 @@ export class BqQueryPlan {
 
   /** reformat the nodes stage statistics to something more pleasing */
   formatStageStats(node: QueryStage): string {
-    if (node.isExternal) {
-      const ghostresult = {'name ': node.id};
-      return JSON.stringify(ghostresult, null, 4);
-    }
     const stats = this.plan.statistics;
+    const endMs = Number(node.endMs);
+    const startMs = Number(node.startMs);
+    const jobStartMs = Number(stats.startTime);
+    const jobEndMs = Number(stats.endTime);
+    if (isNaN(startMs) || isNaN(endMs) || isNaN(jobStartMs) ||
+        isNaN(jobEndMs)) {
+      return 'n/a';
+    }
+    const duration = endMs - startMs;
+    node['durationMs  '] = duration.toLocaleString('en');
+    const startPct = (100 * (startMs - jobStartMs)) / (jobEndMs - jobStartMs);
+    const endPct = (100 * (endMs - jobStartMs)) / (jobEndMs - jobStartMs);
     const result = {
       'id             ': node.id,
       'name           ': node.name,
       'status         ': node.status,
       'input stages   ': node.inputStages ? node.inputStages : 'n/a',
       'parallelInputs ': Number(node.parallelInputs).toLocaleString('en'),
-      'completed      ':
-          Number(node.completedParallelInputs).toLocaleString('en'),
       'recordsRead    ': Number(node.recordsRead).toLocaleString('en'),
-      'shuffleOutputBytes':
-          Number(node.shuffleOutputBytes).toLocaleString('en'),
       'shuffleOutputBytesSpilled':
           Number(node.shuffleOutputBytesSpilled).toLocaleString('en'),
       'recordsWritten ': Number(node.recordsWritten).toLocaleString('en'),
@@ -345,30 +248,23 @@ export class BqQueryPlan {
       'write (ms)     ':
           'avg: ' + Number(node.writeMsAvg).toLocaleString('en') +
           ' max: ' + Number(node.writeMsMax).toLocaleString('en'),
-
+      'startTime      ': new Date(startMs),
+      'endTime        ': new Date(endMs),
+      'start %        ': startPct.toLocaleString('en') + '% of job duration',
+      'end %          ': endPct.toLocaleString('en') + '% of job duration',
     };
-    const endMs = Number(node.endMs);
-    const startMs = Number(node.startMs);
-    const jobStartMs = Number(stats.startTime);
-    const jobEndMs = Number(stats.endTime);
-    if (!isNaN(startMs) && !isNaN(endMs) && !isNaN(jobStartMs) &&
-        !isNaN(jobEndMs)) {
-      const duration = endMs - startMs;
-      node['durationMs  '] = duration.toLocaleString('en');
-      const startPct = (100 * (startMs - jobStartMs)) / (jobEndMs - jobStartMs);
-      const endPct = (100 * (endMs - jobStartMs)) / (jobEndMs - jobStartMs);
-      result['startTime      '] = new Date(startMs);
-      result['endTime        '] = new Date(endMs);
-      result['start %        '] =
-          startPct.toLocaleString('en') + '% of job duration';
-      result['end %          '] =
-          endPct.toLocaleString('en') + '% of job duration';
-    }
-
     return JSON.stringify(result, null, 4);
   }
   /** Return a formatted text of all details minus the steps. */
   getStageStats(node: QueryStage): string {
+    /*const result = {};
+    for (const key of Object.keys(node)) {
+      if (key === 'steps') {
+        continue;
+      }
+      result[key] = node[key];
+    }
+    return JSON.stringify(result, null, 4);*/
     return this.formatStageStats(node);
   }
 
