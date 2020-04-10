@@ -1,14 +1,10 @@
 <div class="header">
   <h1 class="header__title">BQ Visualiser</h1>
   <span class="flex-spacer"></span>
-  <!-- <a mat-button [disabled]="this.isLoggedIn" (click)="login()">login</a>
-  <a mat-button [disabled]="!this.isLoggedIn" (click)="logout()">logout</a> -->
+  <a mat-button [disabled]="this.isLoggedIn" (click)="login()">login</a>
+  <a mat-button [disabled]="!this.isLoggedIn" (click)="logout()">logout</a>
 
-  <a
-    mat-button
-    href="https://github.com/GoogleCloudPlatform/professional-services/tree/master/tools/bq-visualizer"
-    >Forked from Google-Cloud-Platform/bq-visualizer</a
-  >
+  <a mat-button href="/terms">Terms</a>
 </div>
 <div class="main">
   <router-outlet></router-outlet>
