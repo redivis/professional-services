@@ -14,28 +14,3 @@
  * limitations under the License.
  */
  
- .main {
-  overflow: hidden;
-  height: 100vh;
-}
-.footer {
-  padding: 20px;
-  text-align: center;
-  background: #3f5185;
-}
-.header {
-  display: flex;
-  color: #fff;
-  background: #3f51b5;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top:2px;
-  padding-bottom: 2px;
-}
-.header__title {
-  font-weight: bold;
-  font-size: 24px;
-}
-.flex-spacer {
-  flex-grow: 1;
-}
