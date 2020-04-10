@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Component, ViewChild } from "@angular/core";
+import { Component, ViewChild, Output, EventEmitter } from "@angular/core";
 import { MatTabChangeEvent } from "@angular/material/tabs";
 
 import { BqJob } from "../bq_job";
@@ -22,7 +22,7 @@ import { BqQueryPlan } from "../bq_query_plan";
 import { LogService } from "../log.service";
 
 // import {GoogleAuthService} from '../google-auth.service';
-import { JobComponent } from "../job/job.component";
+// import { JobComponent } from "../job/job.component";
 import { ProgressDisplayComponent } from "../progress-display/progress-display.component";
 import { TimingDisplayComponent } from "../timing-display/timing-display.component";
 import { VisDisplayComponent } from "../vis-display/vis-display.component";
@@ -41,6 +41,8 @@ export class MainComponent {
   @ViewChild("timing") timingComponent: TimingDisplayComponent;
   @ViewChild("progress") progressComponent: ProgressDisplayComponent;
 
+  @Output() planSelected = new EventEmitter<BqQueryPlan>();
+
   // adding the authservice here causes the application to invoke authentication
   // constructor(private authService: GoogleAuthService) {}
   constructor(private logSvc: LogService) {}
@@ -48,33 +50,39 @@ export class MainComponent {
   async ngOnInit() {
     this.tabGroup.selectedTabChange.subscribe((tab: MatTabChangeEvent) => {
       switch (tab.index) {
-        case 1:
+        case 0:
           this.visComponent.draw();
           break;
-        case 2:
+        case 1:
           this.timingComponent.draw();
           break;
-        case 3:
+        case 2:
           this.progressComponent.draw();
           break;
       }
     });
-    const res = await fetch(`/api/v1/jobs/${window.location.search}/queryPlan`);
-    let json;
     try {
+      const res = await fetch(
+        `/api/v1/transforms/${
+          window.location.pathname.match(/transforms\/(\d+)\/visualizer/)[1]
+        }/queryPlan`
+      );
+
       const json = await res.json();
+
+      if (res.status > 299) {
+        alert(JSON.stringify(json));
+      } else {
+        const plan = new BqQueryPlan(json, this.logSvc);
+        this.visComponent.loadPlan(plan);
+        this.timingComponent.loadPlan(plan);
+        this.progressComponent.loadPlan(plan);
+        this.planSelected.emit(plan);
+        this.visComponent.draw();
+      }
     } catch (e) {
       alert(e.message);
       return;
-    }
-
-    if (res.status > 299) {
-      alert(json.error);
-    } else {
-      const plan = new BqQueryPlan(json, this.logSvc);
-      this.visComponent.loadPlan(json);
-      this.timingComponent.loadPlan(json);
-      this.progressComponent.loadPlan(json);
     }
   }
 }

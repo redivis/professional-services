@@ -13,20 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {NgModule} from '@angular/core';
-import {RouterModule, Routes} from '@angular/router';
-import {MainComponent} from './main/main.component';
-import {TermsComponent} from './terms/terms.component';
+import { NgModule } from "@angular/core";
+import { APP_BASE_HREF } from "@angular/common";
+import { RouterModule, Routes } from "@angular/router";
+import { MainComponent } from "./main/main.component";
+import { TermsComponent } from "./terms/terms.component";
 
 const routes: Routes = [
-  {path: '', component: MainComponent},
-  {path: 'jobs', component: MainComponent},
-  {path: 'terms', component: TermsComponent},
+  { path: "", component: MainComponent },
+  { path: "jobs", component: MainComponent },
+  { path: "terms", component: TermsComponent }
 ];
 
 @NgModule({
   imports: [RouterModule.forRoot(routes)],
   exports: [RouterModule],
+  providers: [
+    {
+      provide: APP_BASE_HREF,
+      useValue: window["base-href"]
+    }
+  ]
 })
-export class AppRoutingModule {
-}
+export class AppRoutingModule {}
