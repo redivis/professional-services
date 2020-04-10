@@ -16,12 +16,12 @@
 import {Component, OnInit, ViewChild} from '@angular/core';
 import * as vis from 'vis';
 
-import {BqQueryPlan} from '../bq_query_plan';
+import {BqQueryPlan, Edge} from '../bq_query_plan';
 import {DagreLayoutService} from '../dagre-layout.service';
 import {LogService} from '../log.service';
 import {PlanSideDisplayComponent} from '../plan-side-display/plan-side-display.component';
 import {PlanStatusCardComponent} from '../plan-status-card/plan-status-card.component';
-import {QueryStage, QueryStep} from '../rest_interfaces';
+import {QueryStage} from '../rest_interfaces';
 
 type ResizeCallback = (chart: TreeChart, params: object) => void;
 type NodeSelectCallback =
@@ -59,6 +59,7 @@ export class VisDisplayComponent implements OnInit {
     this.statusCard.loadPlan(plan);
     this.sideDisplay.stepDetails = [];
     this.sideDisplay.stageDetails = '';
+    this.clearGraph();
   }
 
   private invalidateGraph() {
@@ -139,6 +140,7 @@ export class VisDisplayComponent implements OnInit {
           title: node.name,
           widthConstraint: 60,
           shape: node.isExternal ? 'database' : 'box',
+          color: node.status === 'RUNNING' ? '#FF8080' : '#D2E5FF',
           physics: false,
           x: layout.node(node.id).x,
           y: layout.node(node.id).y
@@ -148,7 +150,7 @@ export class VisDisplayComponent implements OnInit {
       visedges = new vis.DataSet(plan.edges.map(edge => {
         let nrRecords = edge.from.recordsWritten;
         if (nrRecords === undefined) {
-          nrRecords = edge.to.recordsRead;
+          nrRecords = this.estimate_recordsRead(edge, plan).toString();
         }
         return {
           from: edge.from.id,
@@ -212,6 +214,31 @@ export class VisDisplayComponent implements OnInit {
     return chart;
   }
 
+  /**
+   * calculate an estimate of records processed in an edge.
+   * @param edge
+   */
+  private estimate_recordsRead(edge: Edge, plan: BqQueryPlan): number {
+    const targetNode = edge.to;
+    const totalRecordsRead = Number(targetNode.recordsRead);
+
+    const allIncomingEdges = plan.edges.filter(other_edge => {
+      return (
+          (other_edge.to.id === targetNode.id) &&
+          (other_edge.from.id !== edge.from.id));
+    });
+
+    const all_record_reads = allIncomingEdges.map(edge => {
+      return (edge.from.recordsWritten === undefined) ?
+          '0' :
+          edge.from.recordsWritten;
+    });
+
+    const total = all_record_reads.reduce((a, b) => a + Number(b), 0);
+    const remainder = Number(targetNode.recordsRead) - total;
+
+    return remainder;
+  }
   private getVisOptions(): vis.Options {
     return {
       autoResize: false,
